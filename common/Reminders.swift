@@ -1,122 +1,8 @@
 import EventKit
+import UIKit
 
-class Reminders {
-    let eventStore: EKEventStore = EKEventStore()
-    var hasAccess: Bool = true
-    let defaultList: EKCalendar?
-
-    init() {
-        defaultList = eventStore.defaultCalendarForNewReminders()
-    }
-
-    func getDefaultList() -> String? {
-        if let defaultList = defaultList { return List(list: defaultList).toJson() }
-        return nil
-    }
-
-    func getDefaultListId() -> String? {
-        if let defaultList = defaultList {
-            return defaultList.calendarIdentifier
-        }
-        return nil
-    }
-
-    func requestPermission() -> Bool {
-        var granted = false
-        let semaphore = DispatchSemaphore(value: 0)
-        if #available(iOS 17.0.0, *) {
-
-            if #available(macOS 14.0, *) {
-                eventStore.requestFullAccessToReminders(completion: { (success, error) in
-                    granted = success
-                    semaphore.signal()
-                })
-            } else {
-                // Fallback on earlier versions
-            }
-
-        }else{
-            eventStore.requestAccess(to: EKEntityType.reminder) { (success, error) in
-                granted = success
-                semaphore.signal()
-            }
-
-        }
-        semaphore.wait()
-        hasAccess = granted
-        return granted
-    }
-
-    func getAllLists() -> String? {
-        let lists = eventStore.calendars(for: .reminder)
-        let jsonData = try? JSONEncoder().encode(lists.map { List(list: $0) })
-        return String(data: jsonData ?? Data(), encoding: .utf8)
-    }
-
-    func getReminders(_ id: String?, _ completion: @escaping(String?) -> ()) {
-        var calendar: [EKCalendar]? = nil
-        if let id = id { calendar = [eventStore.calendar(withIdentifier: id) ?? EKCalendar()] }
-        let predicate: NSPredicate? = eventStore.predicateForReminders(in: calendar)
-        if let predicate = predicate {
-            eventStore.fetchReminders(matching: predicate) { (_ reminders: [Any]?) -> Void in
-                let rems = reminders as? [EKReminder] ?? [EKReminder]()
-                let result = rems.map { Reminder(reminder: $0) }
-                let json = try? JSONEncoder().encode(result)
-                completion(String(data: json ?? Data(), encoding: .utf8))
-            }
-        }
-    }
-
-    func saveReminder(_ json: [String: Any], _ completion: @escaping(String?) -> ()) {
-        let reminder: EKReminder
-
-        guard json["list"] != nil,
-              let calendarID: String = json["list"] as? String,
-              let list: EKCalendar = eventStore.calendar(withIdentifier: calendarID) else {
-            return completion("Invalid calendarID")
-        }
-
-        if let reminderID = json["id"] as? String {
-            reminder = eventStore.calendarItem(withIdentifier: reminderID) as! EKReminder
-        } else {
-            reminder = EKReminder(eventStore: eventStore)
-        }
-
-        reminder.calendar = list
-        reminder.title = json["title"] as? String
-        reminder.priority = json["priority"] as? Int ?? 0
-        reminder.isCompleted = json["isCompleted"] as? Bool ?? false
-        reminder.notes = json["notes"] as? String
-        if let date = json["dueDate"] as? [String: Int] {
-            reminder.dueDateComponents = DateComponents(year: date["year"], month: date["month"], day: date["day"], hour: nil, minute: nil, second: nil )
-        } else {
-            reminder.dueDateComponents = nil
-        }
-
-        do {
-            try eventStore.save(reminder, commit: true)
-        } catch {
-            completion(error.localizedDescription)
-        }
-        completion(reminder.calendarItemIdentifier)
-    }
-
-    func deleteReminder(_ id: String, _ completion: @escaping(String?) -> ()) {
-        guard let reminder = eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
-            completion("Cannot find reminder with ID: \(id)")
-            return
-        }
-
-        do {
-            try eventStore.remove(reminder, commit: true)
-        } catch {
-            completion(error.localizedDescription)
-        }
-        completion(nil)
-    }
-}
-
-struct Reminder : Codable {
+// MARK: - Models
+struct Reminder {
     let list: List
     let id: String
     let title: String
@@ -124,34 +10,271 @@ struct Reminder : Codable {
     let priority: Int
     let isCompleted: Bool
     let notes: String?
+}
 
-    init(reminder : EKReminder) {
-        self.list = List(list: reminder.calendar)
-        self.id = reminder.calendarItemIdentifier
-        self.title = reminder.title
-        self.dueDate = reminder.dueDateComponents
-        self.priority = reminder.priority
-        self.isCompleted = reminder.isCompleted
-        self.notes = reminder.notes
-    }
+struct List {
+    let title: String
+    let id: String
+}
 
-    func toJson() -> String? {
-        let jsonData = try? JSONEncoder().encode(self)
-        return String(data: jsonData ?? Data(), encoding: .utf8)
+// MARK: - Error Handling
+enum ReminderError: Error {
+    case invalidCalendarID
+    case reminderNotFound
+    case eventStoreError(Error)
+    case encodingError(String)
+    case invalidDateComponents
+    case unknownError
+}
+
+// MARK: - Reminder Management
+class ReminderManager {
+    private let eventStore: EKEventStore
+    private let queue = DispatchQueue(label: "com.reminderManager.queue", attributes: .concurrent)
+    
+    init(eventStore: EKEventStore = EKEventStore()) {
+        self.eventStore = eventStore
     }
 }
 
-struct List : Codable {
-    let title: String
-    let id: String
 
-    init(list : EKCalendar) {
-        self.title = list.title
-        self.id = list.calendarIdentifier
+// MARK: CRUD Operations for Reminders
+extension ReminderManager {
+    func getLists(completion: @escaping ([List]) -> Void) {
+        queue.async {
+            let reminderLists = self.eventStore.calendars(for: .reminder)
+            let lists = reminderLists.map { List(title: $0.title, id: $0.calendarIdentifier) }
+            DispatchQueue.main.async {
+                completion(lists)
+            }
+        }
     }
+    
+    func getRemindersForListId(_ listId: String, completion: @escaping ([Reminder]) -> Void) {
+        queue.async {
+            guard let calendar = self.eventStore.calendar(withIdentifier: listId) else {
+                DispatchQueue.main.async {
+                    completion([])
+                }
+                return
+            }
+            let predicate = self.eventStore.predicateForReminders(in: [calendar])
+            self.eventStore.fetchReminders(matching: predicate) { ekReminders in
+                let reminders = ekReminders?.compactMap { ekReminder -> Reminder? in
+                    guard let list = self.eventStore.calendar(withIdentifier: ekReminder.calendarItemIdentifier) else {
+                        return nil
+                    }
+                    return Reminder(
+                        list: List(title: list.title, id: list.calendarIdentifier),
+                        id: ekReminder.calendarItemIdentifier,
+                        title: ekReminder.title,
+                        dueDate: ekReminder.dueDateComponents,
+                        priority: ekReminder.priority,
+                        isCompleted: ekReminder.isCompleted,
+                        notes: ekReminder.notes
+                    )
+                } ?? []
+                DispatchQueue.main.async {
+                    completion(reminders)
+                }
+            }
+        }
+    }
+    
+    func createReminder(_ reminder: Reminder, completion: @escaping (Result<String, ReminderError>) -> Void) {
+        queue.async(flags: .barrier) {
+            let newReminder = EKReminder(eventStore: self.eventStore)
+            newReminder.title = reminder.title
+            newReminder.priority = reminder.priority
+            newReminder.isCompleted = reminder.isCompleted
+            newReminder.notes = reminder.notes
+            newReminder.dueDateComponents = reminder.dueDate
+            
+            guard let list = self.eventStore.calendar(withIdentifier: reminder.list.id) else {
+                DispatchQueue.main.async {
+                    completion(.failure(.invalidCalendarID))
+                }
+                return
+            }
+            newReminder.calendar = list
+            
+            do {
+                try self.eventStore.save(newReminder, commit: true)
+                DispatchQueue.main.async {
+                    completion(.success(newReminder.calendarItemIdentifier))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(.failure(.eventStoreError(error)))
+                }
+            }
+        }
+    }
+    
+    
+    func updateReminder(withId id: String, updates: Reminder, completion: @escaping (Result<Void, ReminderError>) -> Void) {
+        queue.async(flags: .barrier) {
+            guard let reminder = self.eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
+                DispatchQueue.main.async {
+                    completion(.failure(.reminderNotFound))
+                }
+                return
+            }
+            
+            reminder.title = updates.title
+            reminder.priority = updates.priority
+            reminder.isCompleted = updates.isCompleted
+            reminder.notes = updates.notes
+            reminder.dueDateComponents = updates.dueDate
+            
+            do {
+                try self.eventStore.save(reminder, commit: true)
+                DispatchQueue.main.async {
+                    completion(.success(()))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(.failure(.eventStoreError(error)))
+                }
+            }
+        }
+    }
+    
+    func deleteReminder(withId id: String, completion: @escaping (Result<Void, ReminderError>) -> Void) {
+        queue.async(flags: .barrier) {
+            guard let reminder = self.eventStore.calendarItem(withIdentifier: id) as? EKReminder else {
+                DispatchQueue.main.async {
+                    completion(.failure(.reminderNotFound))
+                }
+                return
+            }
+            
+            do {
+                try self.eventStore.remove(reminder, commit: true)
+                DispatchQueue.main.async {
+                    completion(.success(()))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(.failure(.eventStoreError(error)))
+                }
+            }
+        }
+    }
+}
 
-    func toJson() -> String? {
-        let jsonData = try? JSONEncoder().encode(self)
-        return String(data: jsonData ?? Data(), encoding: .utf8)
+// MARK: List Operations
+extension ReminderManager {
+    func getDefaultListId(completion: @escaping (String?) -> Void) {
+        queue.async {
+            let defaultList = self.eventStore.defaultCalendarForNewReminders()
+            DispatchQueue.main.async {
+                completion(defaultList?.calendarIdentifier)
+            }
+        }
+    }
+    
+    
+    func createList(withTitle title: String, completion: @escaping (Result<String, ReminderError>) -> Void) {
+        queue.async(flags: .barrier) {
+            let newList = EKCalendar(for: .reminder, eventStore: self.eventStore)
+            newList.title = title
+            guard let source = self.eventStore.defaultCalendarForNewReminders()?.source else {
+                DispatchQueue.main.async {
+                    completion(.failure(.unknownError))
+                }
+                return
+            }
+            newList.source = source
+            
+            do {
+                try self.eventStore.saveCalendar(newList, commit: true)
+                DispatchQueue.main.async {
+                    completion(.success(newList.calendarIdentifier))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(.failure(.eventStoreError(error)))
+                }
+            }
+        }
+    }
+    
+    func updateList(withId id: String, newTitle: String, completion: @escaping (Result<Void, ReminderError>) -> Void) {
+        queue.async(flags: .barrier) {
+            guard let list = self.eventStore.calendar(withIdentifier: id) else {
+                DispatchQueue.main.async {
+                    completion(.failure(.invalidCalendarID))
+                }
+                return
+            }
+            
+            list.title = newTitle
+            
+            do {
+                try self.eventStore.saveCalendar(list, commit: true)
+                DispatchQueue.main.async {
+                    completion(.success(()))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(.failure(.eventStoreError(error)))
+                }
+            }
+        }
+    }
+    
+    func deleteList(withId id: String, completion: @escaping (Result<Void, ReminderError>) -> Void) {
+        queue.async(flags: .barrier) {
+            guard let list = self.eventStore.calendar(withIdentifier: id) else {
+                DispatchQueue.main.async {
+                    completion(.failure(.invalidCalendarID))
+                }
+                return
+            }
+            
+            do {
+                try self.eventStore.removeCalendar(list, commit: true)
+                DispatchQueue.main.async {
+                    completion(.success(()))
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    completion(.failure(.eventStoreError(error)))
+                }
+            }
+        }
+    }
+}
+
+// MARK: Platform Information
+extension ReminderManager {
+    func getPlatformVersion() -> String? {
+        return UIDevice.current.systemVersion
+    }
+}
+
+extension List {
+    func toDictionary() -> [String: Any] {
+        return ["title": title, "id": id]
+    }
+}
+
+extension Reminder {
+    func toDictionary() -> [String: Any] {
+        var dict: [String: Any] = [
+            "listId": list.id,
+            "id": id,
+            "title": title,
+            "priority": priority,
+            "isCompleted": isCompleted
+        ]
+        if let dueDate = dueDate {
+            dict["dueDate"] = dueDate
+        }
+        if let notes = notes {
+            dict["notes"] = notes
+        }
+        return dict
     }
 }

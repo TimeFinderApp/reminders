@@ -1,63 +1,52 @@
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:reminders/reminders_permission_status.dart';
 
 import 'reminder.dart';
 import 'reminders_list.dart';
 import 'reminders_method_channel.dart';
 
-abstract class RemindersPlatform extends PlatformInterface {
+abstract class RemindersPlatformInterface extends PlatformInterface {
   /// Constructs a RemindersPlatform.
-  RemindersPlatform() : super(token: _token);
+  RemindersPlatformInterface() : super(token: _token);
 
   static final Object _token = Object();
 
-  static RemindersPlatform _instance = MethodChannelReminders();
+  static RemindersPlatformInterface _instance = RemindersMethodChannel();
 
-  /// The default instance of [RemindersPlatform] to use.
+  /// The default instance of [RemindersPlatformInterface] to use.
   ///
-  /// Defaults to [MethodChannelReminders].
-  static RemindersPlatform get instance => _instance;
+  /// Defaults to [RemindersMethodChannel].
+  static RemindersPlatformInterface get instance => _instance;
 
   /// Platform-specific implementations should set this with their own
-  /// platform-specific class that extends [RemindersPlatform] when
+  /// platform-specific class that extends [RemindersPlatformInterface] when
   /// they register themselves.
-  static set instance(RemindersPlatform instance) {
+  static set instance(RemindersPlatformInterface instance) {
     PlatformInterface.verifyToken(instance, _token);
     _instance = instance;
   }
 
-  Future<String?> getPlatformVersion() async {
-    throw UnimplementedError('platformVersion() has not been implemented.');
-  }
+  Future<String?> getPlatformVersion();
 
-  Future<bool> hasAccess() async {
-    throw UnimplementedError('hasAccess() has not been implemented.');
-  }
+  Future<bool> requestPermission();
 
-  Future<bool> requestPermission() async {
-    throw UnimplementedError('requestPermission() has not been implemented.');
-  }
+  Future<PermissionStatus> getPermissionStatus();
 
-  Future<String> getDefaultListId() async {
-    throw UnimplementedError('getDefaultListId() has not been implemented.');
-  }
+  Future<String> getDefaultListId();
 
-  Future<RemList?> getDefaultList() async {
-    throw UnimplementedError('getDefaultList() has not been implemented.');
-  }
+  Future<List<RemList>> getLists();
 
-  Future<List<RemList>> getAllLists() async {
-    throw UnimplementedError('getAllLists() has not been implemented.');
-  }
+  Future<List<Reminder>> getRemindersForListId(String listId);
 
-  Future<List<Reminder>?> getReminders([String? id]) async {
-    throw UnimplementedError('getReminders(String?) has not been implemented');
-  }
+  Future<String> createList(String title);
 
-  Future<Reminder> saveReminder(Reminder reminder) async {
-    throw UnimplementedError('saveReminder(Reminder) has not been implemented');
-  }
+  Future<void> updateList(String id, String newTitle);
 
-  Future<String?> deleteReminder(String? id) async {
-    throw UnimplementedError('deleteReminder(String) has not been implemented');
-  }
+  Future<void> deleteList(String id);
+
+  Future<String> createReminder(Reminder reminder);
+
+  Future<void> updateReminder(String id, Reminder reminder);
+
+  Future<void> deleteReminder(String id);
 }

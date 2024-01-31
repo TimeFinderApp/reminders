@@ -2,43 +2,57 @@ import 'reminder.dart';
 export 'reminder.dart';
 import 'reminders_list.dart';
 export 'reminders_list.dart';
-
 import 'reminders_platform_interface.dart';
+import 'reminders_permission_status.dart';
 
 class Reminders {
+  const Reminders();
+
   Future<String?> getPlatformVersion() {
-    return RemindersPlatform.instance.getPlatformVersion();
+    return RemindersPlatformInterface.instance.getPlatformVersion();
   }
 
-  Future<bool> hasAccess() async {
-    return RemindersPlatform.instance.hasAccess();
+  Future<bool> requestPermission() {
+    return RemindersPlatformInterface.instance.requestPermission();
   }
 
-  Future<bool> requestPermission() async {
-    return RemindersPlatform.instance.requestPermission();
+  Future<PermissionStatus> getPermissionStatus() {
+    return RemindersPlatformInterface.instance.getPermissionStatus();
   }
 
-  Future<String> getDefaultListId() async {
-    return RemindersPlatform.instance.getDefaultListId();
+  Future<String> getDefaultListId() {
+    return RemindersPlatformInterface.instance.getDefaultListId();
   }
 
-  Future<RemList?> getDefaultList() async {
-    return RemindersPlatform.instance.getDefaultList();
+  Future<List<RemList>> getLists() {
+    return RemindersPlatformInterface.instance.getLists();
   }
 
-  Future<List<RemList>> getAllLists() async {
-    return RemindersPlatform.instance.getAllLists();
+  Future<List<Reminder>> getRemindersForListId(String listId) {
+    return RemindersPlatformInterface.instance.getRemindersForListId(listId);
   }
 
-  Future<List<Reminder>?> getReminders([String? id]) async {
-    return RemindersPlatform.instance.getReminders(id);
+  Future<String> createList(String title) {
+    return RemindersPlatformInterface.instance.createList(title);
   }
 
-  Future<Reminder> saveReminder(Reminder reminder) async {
-    return RemindersPlatform.instance.saveReminder(reminder);
+  Future<void> updateList(String id, String newTitle) {
+    return RemindersPlatformInterface.instance.updateList(id, newTitle);
   }
 
-  Future<String?> deleteReminder(String id) async {
-    return RemindersPlatform.instance.deleteReminder(id);
+  Future<void> deleteList(String id) {
+    return RemindersPlatformInterface.instance.deleteList(id);
+  }
+
+  Future<String> createReminder(Reminder reminder) {
+    return RemindersPlatformInterface.instance.createReminder(reminder);
+  }
+
+  Future<void> updateReminder(String id, Reminder reminder) {
+    return RemindersPlatformInterface.instance.updateReminder(id, reminder);
+  }
+
+  Future<void> deleteReminder(String id) {
+    return RemindersPlatformInterface.instance.deleteReminder(id);
   }
 }

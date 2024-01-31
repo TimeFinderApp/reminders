@@ -1,77 +1,163 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-
+import 'package:reminders/reminders_permission_status.dart';
 import 'reminders_platform_interface.dart';
 import 'reminders_list.dart';
 import 'reminder.dart';
 
-/// An implementation of [RemindersPlatform] that uses method channels.
-class MethodChannelReminders extends RemindersPlatform {
+const _channelName = 'reminders';
+
+/// An implementation of [RemindersPlatformInterface] that uses method channels.
+class RemindersMethodChannel extends RemindersPlatformInterface {
   /// The method channel used to interact with the native platform.
   @visibleForTesting
-  final methodChannel = const MethodChannel('reminders');
+  final methodChannel = const MethodChannel(_channelName);
 
   @override
   Future<String?> getPlatformVersion() async {
-    final version =
-        await methodChannel.invokeMethod<String>('getPlatformVersion');
-    return version;
-  }
-
-  @override
-  Future<bool> hasAccess() async {
-    final access = await methodChannel.invokeMethod('hasAccess');
-    return access;
+    return await invokeMethod<String>('getPlatformVersion');
   }
 
   @override
   Future<bool> requestPermission() async {
-    final access = await methodChannel.invokeMethod('requestPermission');
-    return access;
+    return await invokeMethod<bool>('requestPermission') ?? false;
+  }
+
+  Future<PermissionStatus> getPermissionStatus() async {
+    final statusRawValue = await invokeMethod<int>('getPermissionStatus');
+    if (statusRawValue == null) {
+      throw PlatformException(
+        code: 'ERROR_FETCHING_PERMISSION_STATUS',
+        message: 'Could not fetch the permission status',
+      );
+    }
+    return PermissionStatus.values[statusRawValue];
   }
 
   @override
   Future<String> getDefaultListId() async {
-    final access = await methodChannel.invokeMethod('getDefaultListId');
-    return access;
+    final defaultListId = await invokeMethod<String>('getDefaultListId');
+    if (defaultListId == null) {
+      throw PlatformException(
+        code: 'ERROR_FETCHING_DEFAULT_LIST_ID',
+        message: 'Could not fetch the default list ID',
+      );
+    }
+    return defaultListId;
   }
 
   @override
-  Future<RemList?> getDefaultList() async {
-    final defaultList = await methodChannel.invokeMethod('getDefaultList');
-    if (defaultList == null) return null;
-    return RemList.fromJson(jsonDecode(defaultList));
+  Future<List<RemList>> getLists() async {
+    final listsJson = await invokeMethod<List<dynamic>>('getLists');
+    return listsJson?.map((json) => RemList.fromJson(json)).toList() ?? [];
   }
 
   @override
-  Future<List<RemList>> getAllLists() async {
-    final lists = await methodChannel.invokeMethod('getAllLists');
-    return jsonDecode(lists)
-        .map<RemList>((list) => RemList.fromJson(list))
-        .toList();
+  Future<String> createList(String title) async {
+    final listId = await invokeMethod<String>(
+      'createList',
+      {'title': title},
+    );
+    if (listId == null) {
+      throw PlatformException(
+        code: 'ERROR_CREATING_LIST',
+        message: 'Failed to create the list',
+      );
+    }
+    return listId;
   }
 
   @override
-  Future<List<Reminder>?> getReminders([String? id]) async {
-    final reminders =
-        await methodChannel.invokeMethod('getReminders', {'id': id});
-    final result = jsonDecode(reminders)
-        .map<Reminder>((reminder) => Reminder.fromJson(reminder))
-        .toList();
-    return (result);
+  Future<void> updateList(String id, String newTitle) async {
+    final result = await invokeMethod<Map<String, dynamic>>(
+      'updateList',
+      {'id': id, 'newTitle': newTitle},
+    );
+    // Handle the case where the Swift code returns nil on success.
+    if (result != null && result['success'] != true) {
+      throw PlatformException(
+        code: result['code'],
+        message: result['message'],
+      );
+    }
   }
 
   @override
-  Future<Reminder> saveReminder(Reminder reminder) async {
-    reminder.id = await methodChannel
-        .invokeMethod('saveReminder', {'reminder': reminder.toJson()});
-    return reminder;
+  Future<void> deleteList(String id) async {
+    final result = await invokeMethod<Map<String, dynamic>>(
+      'deleteList',
+      {'id': id},
+    );
+    if (result != null && result['success'] != true) {
+      throw PlatformException(
+        code: result['code'],
+        message: result['message'],
+      );
+    }
   }
 
   @override
-  Future<String?> deleteReminder(String? id) async {
-    return await methodChannel.invokeMethod('deleteReminder', {'id': id});
+  Future<List<Reminder>> getRemindersForListId(String listId) async {
+    final remindersJson = await invokeMethod<List<dynamic>>(
+      'getRemindersForListId',
+      {'listId': listId},
+    );
+    return remindersJson?.map((json) => Reminder.fromJson(json)).toList() ?? [];
+  }
+
+  @override
+  Future<String> createReminder(Reminder reminder) async {
+    final result = await invokeMethod<Map<String, dynamic>>(
+      'createReminder',
+      {'reminder': reminder.toJson()},
+    );
+    if (result == null || result['success'] != true) {
+      throw PlatformException(
+        code: result?['code'] ?? 'ERROR_CREATING_REMINDER',
+        message: result?['message'] ?? 'Failed to create the reminder',
+      );
+    }
+    return result['message'];
+  }
+
+  @override
+  Future<void> updateReminder(String id, Reminder reminder) async {
+    final result = await invokeMethod<Map<String, dynamic>>(
+      'updateReminder',
+      {'id': id, 'reminder': reminder.toJson()},
+    );
+    if (result != null && result['success'] != true) {
+      throw PlatformException(
+        code: result['code'],
+        message: result['message'],
+      );
+    }
+  }
+
+  @override
+  Future<void> deleteReminder(String id) async {
+    final result = await invokeMethod<Map<String, dynamic>>(
+      'deleteReminder',
+      {'id': id},
+    );
+    if (result != null && result['success'] != true) {
+      throw PlatformException(
+        code: result['code'],
+        message: result['message'],
+      );
+    }
+  }
+
+  Future<T?> invokeMethod<T>(String method, [dynamic arguments]) async {
+    try {
+      final result = await methodChannel.invokeMethod<T>(method, arguments);
+      return result;
+    } on PlatformException catch (e) {
+      throw PlatformException(
+        code: e.code,
+        message: e.message,
+        details: e.details,
+      );
+    }
   }
 }

@@ -10,6 +10,6 @@
 
 @implementation RemindersPlugin
 + (void)registerWithRegistrar:(NSObject<FlutterPluginRegistrar>*)registrar {
-  [SwiftRemindersPlugin registerWithRegistrar:registrar];
+  [iOSRemindersPlugin registerWithRegistrar:registrar];
 }
 @end
