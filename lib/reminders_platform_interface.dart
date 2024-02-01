@@ -33,6 +33,10 @@ abstract class RemindersPlatform extends PlatformInterface {
     throw UnimplementedError('hasAccess() has not been implemented.');
   }
 
+  Future<String> getPermissionStatus() async {
+    throw UnimplementedError('getPermissionStatus() has not been implemented.');
+  }
+
   Future<bool> requestPermission() async {
     throw UnimplementedError('requestPermission() has not been implemented.');
   }

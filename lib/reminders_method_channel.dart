@@ -27,6 +27,13 @@ class MethodChannelReminders extends RemindersPlatform {
   }
 
   @override
+  Future<String> getPermissionStatus() async {
+    final String status =
+        await methodChannel.invokeMethod('getPermissionStatus');
+    return status;
+  }
+
+  @override
   Future<bool> requestPermission() async {
     final access = await methodChannel.invokeMethod('requestPermission');
     return access;
