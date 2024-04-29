@@ -166,29 +166,32 @@ enum PermissionStatus: String {
     case fullAccess = "fullAccess"
     case writeOnly = "writeOnly"
 
-    // Existing initializer for cases up to iOS 16
     init(status: EKAuthorizationStatus) {
-        switch status {
-        case .authorized: self = .authorized
-        case .denied: self = .denied
-        case .notDetermined: self = .notDetermined
-        case .restricted: self = .restricted
-        @unknown default: self = .unknown
-        }
-    }
-
-    // iOS 17 specific initializer
-    @available(iOS 17.0, *)
-    init(ios17Status status: EKAuthorizationStatus) {
-        switch status {
-        case .authorized: self = .fullAccess // Assuming fullAccess is equivalent to .authorized in iOS 17
-        case .denied: self = .denied
-        case .notDetermined: self = .notDetermined
-        case .restricted: self = .restricted
-        // Handle the new cases specific to iOS 17
-        case .fullAccess: self = .fullAccess
-        case .writeOnly: self = .writeOnly
-        @unknown default: self = .unknown
+        if #available(iOS 17.0, *) {
+            switch status {
+                // ".authorized" can only be a remnant from iOS 16 and earlier.
+                // If present, we need to re-prompt to get more granular fullAccess permission.
+            case .authorized: self = .notDetermined
+            case .denied: self = .denied
+            case .notDetermined: self = .notDetermined
+            case .restricted: self = .restricted
+            // Handle the new cases specific to iOS 17+
+            case .fullAccess: self = .fullAccess
+            case .writeOnly: self = .writeOnly
+            @unknown default: self = .unknown
+            }
+        } else {
+            switch status {
+            case .authorized: self = .authorized
+            case .denied: self = .denied
+            case .notDetermined: self = .notDetermined
+            case .restricted: self = .restricted
+                // These below should never happen, as they're only applicable for iOS 17+
+                // Including them here to satisfy linter.
+            case .fullAccess: self = .authorized
+            case .writeOnly: self = .denied
+            @unknown default: self = .unknown
+            }
         }
     }
 }
@@ -199,10 +202,6 @@ class PermissionManager {
 
     static func getPermissionStatus() -> PermissionStatus {
         let status = EKEventStore.authorizationStatus(for: .reminder)
-        if #available(iOS 17.0, *) {
-            return PermissionStatus(ios17Status: status)
-        } else {
             return PermissionStatus(status: status)
-        }
     }
 }
