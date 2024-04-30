@@ -23,6 +23,9 @@ public class RemindersPlugin: NSObject, FlutterPlugin {
     case "getPermissionStatus":
       let permissionStatus = PermissionManager.getPermissionStatus()
       result(permissionStatus.rawValue)
+        
+    case "requestPermission":
+      result(self.reminders.requestPermission())
 
     case "getDefaultList":
       result(self.reminders.getDefaultList())
