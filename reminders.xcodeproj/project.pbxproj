@@ -44,8 +44,8 @@
 		5B0BF7D82B76CEA1009F9356 /* Classes */ = {
 			isa = PBXGroup;
 			children = (
-				5B0BF7D92B76CEA1009F9356 /* SwiftRemindersPlugin.swift */,
 				5B0BF7DB2B76CEA1009F9356 /* PermissionHandler.swift */,
+				5B0BF7D92B76CEA1009F9356 /* SwiftRemindersPlugin.swift */,
 			);
 			name = Classes;
 			path = ios/Classes;
