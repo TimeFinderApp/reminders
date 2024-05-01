@@ -157,51 +157,27 @@ struct List : Codable {
 }
 import EventKit
 
-enum PermissionStatus: String {
-    case authorized = "authorized"
-    case denied = "denied"
-    case notDetermined = "notDetermined"
-    case restricted = "restricted"
-    case unknown = "unknown"
-    case fullAccess = "fullAccess"
-    case writeOnly = "writeOnly"
-
-    init(status: EKAuthorizationStatus) {
-        if #available(iOS 17.0, *) {
-            switch status {
-                // ".authorized" can only be a remnant from iOS 16 and earlier.
-                // If present, we need to re-prompt to get more granular fullAccess permission.
-            case .authorized: self = .notDetermined
-            case .denied: self = .denied
-            case .notDetermined: self = .notDetermined
-            case .restricted: self = .restricted
-            // Handle the new cases specific to iOS 17+
-            case .fullAccess: self = .fullAccess
-            case .writeOnly: self = .writeOnly
-            @unknown default: self = .unknown
-            }
-        } else {
-            switch status {
-            case .authorized: self = .authorized
-            case .denied: self = .denied
-            case .notDetermined: self = .notDetermined
-            case .restricted: self = .restricted
-                // These below should never happen, as they're only applicable for iOS 17+
-                // Including them here to satisfy linter.
-            case .fullAccess: self = .authorized
-            case .writeOnly: self = .denied
-            @unknown default: self = .unknown
-            }
-        }
-    }
-}
-
 // MARK: - Permission Handling
 class PermissionManager {
     private static let eventStore = EKEventStore()
 
-    static func getPermissionStatus() -> PermissionStatus {
+    static func getPermissionStatus() -> String {
         let status = EKEventStore.authorizationStatus(for: .reminder)
-            return PermissionStatus(status: status)
+        switch status {
+        case .authorized:
+            return "authorized"
+        case .denied:
+            return "denied"
+        case .notDetermined:
+            return "notDetermined"
+        case .restricted:
+            return "restricted"
+        case .fullAccess:
+            return "fullAccess"
+        case .writeOnly:
+            return "writeOnly"
+        @unknown default:
+            return "unknown"
+        }
     }
 }
