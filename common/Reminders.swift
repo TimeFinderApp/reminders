@@ -80,7 +80,11 @@ class Reminders {
 
     private func hasReminderPermission() -> Bool {
         let status = EKEventStore.authorizationStatus(for: .reminder)
-        return status == .authorized || (status == .fullAccess && #available(iOS 17.0, macOS 14.0, *))
+        if #available(iOS 17.0, macOS 14.0, *) {
+            return status == .authorized || status == .fullAccess
+        } else {
+            return status == .authorized
+        }
     }
 
     func getAllLists(completion: @escaping (String?) -> Void) {
