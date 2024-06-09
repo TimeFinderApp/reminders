@@ -21,16 +21,24 @@ public class RemindersPlugin: NSObject, FlutterPlugin {
       result(self.reminders.hasAccess)
 
     case "getPermissionStatus":
-      result(PermissionManager.getPermissionStatus())
+      let permissionStatus = PermissionManager.getPermissionStatus()
+      result(permissionStatus.rawValue)
         
-    case "requestPermission":
-      result(self.reminders.requestPermission())
+    case "requestPermissions":
+      self.reminders.requestPermissions { success in
+        result(success)
+      }
+
+    case "getDefaultListId":
+      result(self.reminders.getDefaultListId())
 
     case "getDefaultList":
       result(self.reminders.getDefaultList())
 
     case "getAllLists":
-      result(self.reminders.getAllLists())
+      self.reminders.getAllLists { lists in
+          result(lists)
+      }
 
     case "getReminders":
       if let args = call.arguments as? [String: String?] {
@@ -64,4 +72,3 @@ public class RemindersPlugin: NSObject, FlutterPlugin {
     }
   }
 }
-
