@@ -35,27 +35,49 @@ class Reminders {
         return nil
     }
 
-    func requestPermission(completion: @escaping (Bool) -> Void) {
-        print("Requesting permission for reminders")
+    func requestPermissions(completion: @escaping (Bool) -> Void) {
+        let status = EKEventStore.authorizationStatus(for: .reminder)
+        print("Current authorization status: \(status.rawValue)")
+
+        if hasReminderPermissions() {
+            completion(true)
+            return
+        }
+
         if #available(iOS 17.0, macOS 14.0, *) {
-            eventStore.requestFullAccessToReminders { (success, error) in
-                if let error = error {
-                    print("Error requesting full access: \(error.localizedDescription)")
+            Task {
+                do {
+                    print("Requesting full access to reminders...")
+                    try await eventStore.requestFullAccessToReminders()
+                    DispatchQueue.main.async {
+                        let newStatus = EKEventStore.authorizationStatus(for: .reminder)
+                        print("Authorization status after requesting full access: \(newStatus.rawValue)")
+                        let accessGranted = (newStatus == .fullAccess)
+                        completion(accessGranted)
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        print("Failed to request full access: \(error.localizedDescription)")
+                        completion(false)
+                    }
                 }
-                self.hasAccess = success
-                print("Permission request success: \(success)")
-                completion(success)
             }
         } else {
-            eventStore.requestAccess(to: .reminder) { (success, error) in
-                if let error = error {
-                    print("Error requesting access: \(error.localizedDescription)")
+            eventStore.requestAccess(to: .reminder) { (accessGranted: Bool, error: Error?) in
+                DispatchQueue.main.async {
+                    if let error = error {
+                        print("Error requesting access: \(error.localizedDescription)")
+                    }
+                    print("Access granted: \(accessGranted)")
+                    completion(accessGranted)
                 }
-                self.hasAccess = success
-                print("Permission request success: \(success)")
-                completion(success)
             }
         }
+    }
+
+    private func hasReminderPermissions() -> Bool {
+        let status = EKEventStore.authorizationStatus(for: .reminder)
+        return status == .authorized || (status == .fullAccess && #available(iOS 17.0, macOS 14.0, *))
     }
 
     func getAllLists(completion: @escaping (String?) -> Void) {
@@ -186,30 +208,5 @@ struct List: Codable {
     func toJson() -> String? {
         let jsonData = try? JSONEncoder().encode(self)
         return String(data: jsonData ?? Data(), encoding: .utf8)
-    }
-}
-
-// MARK: - Permission Handling
-class PermissionManager {
-    private static let eventStore = EKEventStore()
-
-    static func getPermissionStatus() -> String {
-        let status = EKEventStore.authorizationStatus(for: .reminder)
-        switch status {
-        case .authorized:
-            return "authorized"
-        case .denied:
-            return "denied"
-        case .notDetermined:
-            return "notDetermined"
-        case .restricted:
-            return "restricted"
-        case .fullAccess:
-            return "fullAccess"
-        case .writeOnly:
-            return "writeOnly"
-        @unknown default:
-            return "unknown"
-        }
     }
 }

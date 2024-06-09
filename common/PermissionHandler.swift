@@ -24,11 +24,10 @@ enum PermissionStatus: String {
     @available(iOS 17.0, *)
     init(ios17Status status: EKAuthorizationStatus) {
         switch status {
-        case .authorized: self = .fullAccess // Assuming fullAccess is equivalent to .authorized in iOS 17
+        case .authorized: self = .authorized
         case .denied: self = .denied
         case .notDetermined: self = .notDetermined
         case .restricted: self = .restricted
-        // Handle the new cases specific to iOS 17
         case .fullAccess: self = .fullAccess
         case .writeOnly: self = .writeOnly
         @unknown default: self = .unknown
