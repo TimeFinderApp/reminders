@@ -22,10 +22,10 @@ public class RemindersPlugin: NSObject, FlutterPlugin {
 
     case "getPermissionStatus":
       let permissionStatus = PermissionManager.getPermissionStatus()
-      result(permissionStatus.rawValue)
+      result(permissionStatus)
         
-    case "requestPermissions":
-      self.reminders.requestPermissions { success in
+    case "requestPermission":
+      self.reminders.requestPermission { success in
         result(success)
       }
 
