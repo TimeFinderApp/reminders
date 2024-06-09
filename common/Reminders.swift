@@ -2,7 +2,6 @@ import EventKit
 
 class Reminders {
     let eventStore: EKEventStore = EKEventStore()
-    var hasAccess: Bool = true
     let defaultList: EKCalendar?
 
     init() {
@@ -13,6 +12,10 @@ class Reminders {
         } else {
             print("Default list initialization failed")
         }
+    }
+
+    var hasAccess: Bool {
+        return hasReminderPermissions()
     }
 
     func getDefaultList() -> String? {
@@ -208,5 +211,30 @@ struct List: Codable {
     func toJson() -> String? {
         let jsonData = try? JSONEncoder().encode(self)
         return String(data: jsonData ?? Data(), encoding: .utf8)
+    }
+}
+
+// MARK: - Permission Handling
+class PermissionManager {
+    private static let eventStore = EKEventStore()
+
+    static func getPermissionStatus() -> String {
+        let status = EKEventStore.authorizationStatus(for: .reminder)
+        switch status {
+        case .authorized:
+            return "authorized"
+        case .denied:
+            return "denied"
+        case .notDetermined:
+            return "notDetermined"
+        case .restricted:
+            return "restricted"
+        case .fullAccess:
+            return "fullAccess"
+        case .writeOnly:
+            return "writeOnly"
+        @unknown default:
+            return "unknown"
+        }
     }
 }
