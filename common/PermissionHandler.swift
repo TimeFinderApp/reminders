@@ -9,7 +9,7 @@ enum PermissionStatus: String {
     case fullAccess = "fullAccess"
     case writeOnly = "writeOnly"
 
-    // Existing initializer for cases up to iOS 16
+    // Existing initializer for cases up to iOS 16 and macOS 13
     init(status: EKAuthorizationStatus) {
         switch status {
         case .authorized: self = .authorized
@@ -20,14 +20,15 @@ enum PermissionStatus: String {
         }
     }
 
-    // iOS 17 specific initializer
-    @available(iOS 17.0, *)
-    init(ios17Status status: EKAuthorizationStatus) {
+    // iOS 17 and macOS 14 specific initializer
+    @available(iOS 17.0, macOS 14.0, *)
+    init(newStatus status: EKAuthorizationStatus) {
         switch status {
         case .authorized: self = .authorized
         case .denied: self = .denied
         case .notDetermined: self = .notDetermined
         case .restricted: self = .restricted
+        // Handle the new cases specific to iOS 17 and macOS 14
         case .fullAccess: self = .fullAccess
         case .writeOnly: self = .writeOnly
         @unknown default: self = .unknown
@@ -41,8 +42,8 @@ class PermissionManager {
 
     static func getPermissionStatus() -> PermissionStatus {
         let status = EKEventStore.authorizationStatus(for: .reminder)
-        if #available(iOS 17.0, *) {
-            return PermissionStatus(ios17Status: status)
+        if #available(iOS 17.0, macOS 14.0, *) {
+            return PermissionStatus(newStatus: status)
         } else {
             return PermissionStatus(status: status)
         }
