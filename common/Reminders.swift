@@ -58,16 +58,16 @@ class Reminders {
         }
     }
 
-    func getAllLists() -> String? {
+    func getAllLists(completion: @escaping (String?) -> Void) {
         print("Fetching all reminder lists")
         let lists = eventStore.calendars(for: .reminder)
         let jsonData = try? JSONEncoder().encode(lists.map { List(list: $0) })
         if let jsonData = jsonData {
             print("All lists fetched successfully")
-            return String(data: jsonData, encoding: .utf8)
+            completion(String(data: jsonData, encoding: .utf8))
         } else {
             print("Failed to fetch lists")
-            return nil
+            completion(nil)
         }
     }
 
@@ -88,6 +88,7 @@ class Reminders {
             }
         } else {
             print("Failed to create predicate for reminders")
+            completion(nil)
         }
     }
 
