@@ -15,7 +15,7 @@ class Reminders {
     }
 
     var hasAccess: Bool {
-        return hasReminderPermissions()
+        return hasReminderPermission()
     }
 
     func getDefaultList() -> String? {
@@ -38,11 +38,11 @@ class Reminders {
         return nil
     }
 
-    func requestPermissions(completion: @escaping (Bool) -> Void) {
+    func requestPermission(completion: @escaping (Bool) -> Void) {
         let status = EKEventStore.authorizationStatus(for: .reminder)
         print("Current authorization status: \(status.rawValue)")
 
-        if hasReminderPermissions() {
+        if hasReminderPermission() {
             completion(true)
             return
         }
@@ -78,7 +78,7 @@ class Reminders {
         }
     }
 
-    private func hasReminderPermissions() -> Bool {
+    private func hasReminderPermission() -> Bool {
         let status = EKEventStore.authorizationStatus(for: .reminder)
         return status == .authorized || (status == .fullAccess && #available(iOS 17.0, macOS 14.0, *))
     }
