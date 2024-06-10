@@ -19,9 +19,9 @@ public class SwiftRemindersPlugin: NSObject, FlutterPlugin {
       case "hasAccess":
         result(self.reminders.hasAccess)
 
-      case "getPermissionStatus":
+    case "getPermissionStatus":
         let permissionStatus = PermissionManager.getPermissionStatus()
-        result(permissionStatus.rawValue)
+        result(permissionStatus)
 
       case "requestPermission":
         result(self.reminders.requestPermission())
