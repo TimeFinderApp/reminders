@@ -19,12 +19,14 @@ public class SwiftRemindersPlugin: NSObject, FlutterPlugin {
       case "hasAccess":
         result(self.reminders.hasAccess)
 
-    case "getPermissionStatus":
+      case "getPermissionStatus":
         let permissionStatus = PermissionManager.getPermissionStatus()
         result(permissionStatus)
 
       case "requestPermission":
-        result(self.reminders.requestPermission())
+        self.reminders.requestPermission { success in
+          result(success)
+        }
 
       case "getDefaultListId":
         result(self.reminders.getDefaultListId())
@@ -33,7 +35,9 @@ public class SwiftRemindersPlugin: NSObject, FlutterPlugin {
         result(self.reminders.getDefaultList())
 
       case "getAllLists":
-        result(self.reminders.getAllLists())
+        self.reminders.getAllLists { lists in
+            result(lists)
+        }
 
       case "getReminders":
         if let args = call.arguments as? [String: String?] {
